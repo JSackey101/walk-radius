@@ -1,0 +1,137 @@
+name: Claude Review
+
+# Claude reviews every non-draft PR, re-reviews on each push, and replies when
+# the repo owner answers one of its review comments. Real bugs are tagged
+# [blocking]; the "gate" step counts unresolved [blocking] threads and sets the
+# `claude-review` commit status, which the "Protect main" ruleset requires.
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+  pull_request_review_comment:
+    types: [created]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  review:
+    if: >-
+      github.event.pull_request.draft == false &&
+      (github.event_name == 'pull_request' ||
+       (github.event.comment.user.login == github.repository_owner &&
+        github.event.comment.in_reply_to_id != null))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+      statuses: write
+      id-token: write
+    steps:
+      - name: Mark review pending
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/statuses/${{ github.event.pull_request.head.sha }}" \
+            -f state=pending -f context=claude-review -f description="Claude is reviewing" >/dev/null
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Claude
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          classify_inline_comments: "false"
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+            BASE BRANCH: ${{ github.event.pull_request.base.ref }}
+            EVENT: ${{ github.event_name }}
+            TRIGGER COMMENT ID: ${{ github.event.comment.id }}
+
+            You are the code reviewer for this PR. The PR head is checked out in
+            the working directory with full git history.
+
+            ## Severity: what may block
+            Start every inline comment with exactly one tag:
+            - `[blocking]` ONLY for a real bug: wrong behaviour, a crash, data loss,
+              a security hole, or a broken build/test. You must be able to describe
+              the concrete input or situation that goes wrong.
+            - `[suggestion]` for anything else worth saying (design, readability,
+              performance that does not break anything, missing tests).
+            - `[nit]` for minor style points. Use sparingly.
+            Style, naming and formatting are never blocking. When unsure, do not block.
+
+            ## Step 1: load the existing review state
+            Fetch all review threads, including resolved state and every reply:
+            gh api graphql -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){reviewThreads(first:100){nodes{id isResolved path line comments(first:50){nodes{databaseId author{login} body createdAt}}}}}}}' -f o=${{ github.repository_owner }} -f r=${{ github.event.repository.name }} -F n=${{ github.event.pull_request.number }}
+
+            ## Step 2a: if EVENT is pull_request_review_comment
+            The repo owner has replied in one of your threads. Find the thread that
+            contains comment TRIGGER COMMENT ID and read the whole thread plus the
+            code it refers to. Then reply in that thread with:
+            gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments/<first comment databaseId>/replies -f body='...'
+            - If their argument is sound (intentional behaviour, you misread the
+              code, the risk is acceptable), say so briefly and resolve the thread
+              with the resolveReviewThread GraphQL mutation (thread id from step 1).
+            - If the bug still stands, explain why with the concrete failing case,
+              and leave the thread open.
+            - If they ask a question, answer it (a ```suggestion block is fine).
+            Do not review the rest of the PR in this mode.
+
+            ## Step 2b: if EVENT is pull_request
+            1. For each UNRESOLVED thread you started: check the current code and
+               commits since (git log, git diff). If addressed, reply naming the
+               commit that fixed it and resolve the thread. If the owner replied
+               with a counter-argument you have not answered yet, handle it as in
+               2a. Otherwise leave it.
+            2. Review the full diff (gh pr diff) against the base branch. Post NEW
+               inline comments with mcp__github_inline_comment__create_inline_comment
+               (confirmed: true) only for problems not already covered by an
+               existing thread. Do not repeat resolved points.
+            3. Post or update one top-level summary comment with gh pr comment
+               (use --edit-last when you have commented before): what the PR does,
+               counts of open blocking / suggestion threads, and a one-line verdict.
+            4. If no unresolved [blocking] threads remain, approve:
+               gh pr review ${{ github.event.pull_request.number }} --approve --body "No blocking issues."
+               If that command fails, ignore it.
+
+            Keep comments short and specific. Only post GitHub comments; do not put
+            review text in your final message.
+          claude_args: |
+            --model claude-sonnet-5-5
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr review:*),Bash(gh api:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Read,Glob,Grep"
+
+      - name: Gate on unresolved [blocking] threads
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CLAUDE_OUTCOME: ${{ steps.claude.outcome }}
+        run: |
+          set -euo pipefail
+          data=$(gh api graphql \
+            -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){headRefOid reviewThreads(first:100){nodes{isResolved comments(first:1){nodes{author{login} body}}}}}}}' \
+            -f o='${{ github.repository_owner }}' -f r='${{ github.event.repository.name }}' -F n=${{ github.event.pull_request.number }})
+          head=$(jq -r '.data.repository.pullRequest.headRefOid' <<<"$data")
+          blocking=$(jq '[.data.repository.pullRequest.reviewThreads.nodes[]
+            | select(.isResolved | not) | .comments.nodes[0]
+            | select(.author.login | test("claude"; "i"))
+            | select(.body | test("^\\s*\\**\\[blocking\\]"; "i"))] | length' <<<"$data")
+
+          if [ "$CLAUDE_OUTCOME" != "success" ]; then
+            state=error; desc="Claude review did not complete; re-run the job"
+          elif [ "$blocking" -gt 0 ]; then
+            state=failure; desc="$blocking unresolved blocking issue(s)"
+          else
+            state=success; desc="No unresolved blocking issues"
+          fi
+          echo "$desc"
+          gh api "repos/${{ github.repository }}/statuses/$head" \
+            -f state="$state" -f context=claude-review -f description="$desc" >/dev/null
+          [ "$state" = success ]
