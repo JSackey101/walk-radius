@@ -1,7 +1,7 @@
 import { MapContainer, TileLayer } from 'react-leaflet'
 import type { LatLngExpression } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import notFoundImage from '../assets/not-found-image.png'
+import notFoundImage from '../assets/not-found-image.jpg'
 
 const LONDON: LatLngExpression = [51.5074, -0.1278]
 
