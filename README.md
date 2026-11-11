@@ -4,6 +4,17 @@ Find places you can walk to within X minutes.
 
 Pick a time budget (10, 20, 30 or 45 minutes) and Walk Radius shades the area you can reach on foot, then lists parks, cafés and viewpoints inside it.
 
+## Running Locally
+
+### Frontend
+```
+cd frontend
+npm install
+npm run dev
+```
+
+Then open the url it prints (usually http://localhost:5173).
+
 ## Status
 
 🚧 In planning. Building the MVP milestone by milestone (M1–M5).
