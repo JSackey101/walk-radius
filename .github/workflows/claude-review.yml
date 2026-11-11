@@ -11,10 +11,6 @@ on:
   pull_request_review_comment:
     types: [created]
 
-concurrency:
-  group: claude-review-${{ github.event.pull_request.number }}
-  cancel-in-progress: false
-
 jobs:
   review:
     if: >-
@@ -24,6 +20,11 @@ jobs:
         github.event.comment.in_reply_to_id != null))
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Job-level so skipped runs (e.g. bot comments) don't take the slot and
+    # cancel a queued review or reply.
+    concurrency:
+      group: claude-review-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
     permissions:
       contents: read
       pull-requests: write
