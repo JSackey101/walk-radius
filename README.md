@@ -6,6 +6,10 @@ Pick a time budget (10, 20, 30 or 45 minutes) and Walk Radius shades the area yo
 
 ## Running Locally
 
+### Prerequisites 
+
+- Node.js 22.12.0 or newer
+
 ### Frontend
 ```
 cd frontend
