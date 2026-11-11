@@ -124,7 +124,11 @@ jobs:
             | select(.author.login | test("claude"; "i"))
             | select(.body | test("^\\s*\\**\\[blocking\\]"; "i"))] | length' <<<"$data")
 
-          if [ "$CLAUDE_OUTCOME" != "success" ]; then
+          # The action skips itself (and still reports success) when a PR changes
+          # this workflow file, so don't let that look like a clean review.
+          if ! git diff --quiet "origin/${{ github.event.pull_request.base.ref }}...HEAD" -- .github/workflows/claude-review.yml; then
+            state=success; desc="Review workflow changed: Claude skipped, review it yourself"
+          elif [ "$CLAUDE_OUTCOME" != "success" ]; then
             state=error; desc="Claude review did not complete; re-run the job"
           elif [ "$blocking" -gt 0 ]; then
             state=failure; desc="$blocking unresolved blocking issue(s)"
