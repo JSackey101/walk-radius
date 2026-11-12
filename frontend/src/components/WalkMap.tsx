@@ -2,16 +2,18 @@ import { MapContainer, TileLayer } from 'react-leaflet'
 import type { LatLngExpression } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import notFoundImage from '../assets/not-found-image.jpg'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 const LONDON: LatLngExpression = [51.5074, -0.1278]
 
 function WalkMap() {
+    const [currentPosition, setCurrentPosition] = useState<LatLngExpression | null>(null)
     return (
         useEffect(() => {
             navigator.geolocation.getCurrentPosition(
                 (position) => {
                     console.log('User location:', position.coords.latitude, position.coords.longitude)
+                    setCurrentPosition([position.coords.latitude, position.coords.longitude])
                 },
                 (error) => {
                     console.error('Error getting user location:', error)
