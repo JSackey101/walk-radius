@@ -1,4 +1,4 @@
-import { MapContainer, TileLayer } from 'react-leaflet'
+import { MapContainer, TileLayer, useMap } from 'react-leaflet'
 import type { LatLngExpression } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import notFoundImage from '../assets/not-found-image.jpg'
@@ -21,10 +21,19 @@ function WalkMap() {
             )
         }, []),
 
-        <MapContainer center={LONDON} zoom={13} className="walk-map">
-            <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" errorTileUrl={notFoundImage}/>
+        <MapContainer center={LONDON} zoom={4} className="walk-map">
+            {currentPosition && <MoveToPosition position={currentPosition} />}
+            <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" errorTileUrl={notFoundImage}/>
         </MapContainer>
     )
+}
+
+function MoveToPosition({ position }: { position: LatLngExpression }) {
+    const map = useMap()
+    useEffect(() => {
+        map.flyTo(position, 13)
+    }, [position, map])
+    return null
 }
 
 export default WalkMap
