@@ -11,14 +11,17 @@ function WalkMap() {
     const [currentPosition, setCurrentPosition] = useState<LatLngExpression | null>(null)
     const [locationError, setLocationError] = useState(false)
     useEffect(() => {
+            let ignore = false
+            
             navigator.geolocation.getCurrentPosition(
                 (position) => {
+                    if (ignore) return
                     setCurrentPosition([position.coords.latitude, position.coords.longitude])
                     setLocationError(false)
                 },
                 (error) => {
                     setLocationError(true)
-                    console.error('Error getting location:', error.code, error.message)
+                    console.error('Error getting location:', error.message)
                 },
                 { timeout: 10000 }
             )}, [])
