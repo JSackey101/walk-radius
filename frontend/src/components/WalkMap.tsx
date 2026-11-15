@@ -9,8 +9,7 @@ const LONDON: LatLngExpression = [51.5074, -0.1278]
 
 function WalkMap() {
     const [currentPosition, setCurrentPosition] = useState<LatLngExpression | null>(null)
-    return (
-        useEffect(() => {
+    useEffect(() => {
             navigator.geolocation.getCurrentPosition(
                 (position) => {
                     setCurrentPosition([position.coords.latitude, position.coords.longitude])
@@ -18,9 +17,8 @@ function WalkMap() {
                 (error) => {
                     console.error('Error getting user location:', error)
                 }
-            )
-        }, []),
-
+            )}, [])
+    return (
         <MapContainer center={LONDON} zoom={4} className="walk-map">
             {currentPosition && <MoveToPosition position={currentPosition} />}
             {currentPosition && <Marker position={currentPosition} icon={pinIcon} />}
