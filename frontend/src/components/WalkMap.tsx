@@ -18,8 +18,9 @@ function WalkMap() {
                 },
                 (error) => {
                     setLocationError(true)
-                    console.error('Error getting location:', error)
-                }
+                    console.error('Error getting location:', error.code, error.message)
+                },
+                { timeout: 10000 }
             )}, [])
     return (
         <>
