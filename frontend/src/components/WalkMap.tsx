@@ -12,7 +12,8 @@ function WalkMap() {
     const [locationError, setLocationError] = useState(false)
     useEffect(() => {
             let ignore = false
-            
+            if (!navigator.geolocation) return 
+
             navigator.geolocation.getCurrentPosition(
                 (position) => {
                     if (ignore) return
