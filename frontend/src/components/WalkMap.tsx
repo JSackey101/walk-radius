@@ -9,7 +9,7 @@ const LONDON: LatLngExpression = [51.5074, -0.1278]
 
 function WalkMap() {
     const [currentPosition, setCurrentPosition] = useState<LatLngExpression | null>(null)
-    const [locationError, setLocationError] = useState(false)
+    const [locationError, setLocationError] = useState<number | null>(null)
     useEffect(() => {
             let ignore = false
             if (!navigator.geolocation) return 
@@ -18,10 +18,10 @@ function WalkMap() {
                 (position) => {
                     if (ignore) return
                     setCurrentPosition([position.coords.latitude, position.coords.longitude])
-                    setLocationError(false)
+                    setLocationError(null)
                 },
                 (error) => {
-                    setLocationError(true)
+                    setLocationError(error.code)
                     console.error('Error getting location:', error.message)
                 },
                 { timeout: 10000 }
