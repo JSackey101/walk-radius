@@ -29,7 +29,7 @@ function WalkMap() {
             )}, [])
     return (
         <>
-        {locationError != null && <LocationNotice message="Using London as your start point. Tap the map to change it." />}
+        {locationError != null && <LocationNotice message={locationMessage(locationError)} />}
         <MapContainer center={LONDON} zoom={13} className="walk-map">
             {currentPosition && <MoveToPosition position={currentPosition} />}
             {currentPosition && <Marker position={currentPosition} icon={pinIcon} />}
@@ -45,6 +45,19 @@ function MoveToPosition({ position }: { position: LatLngExpression }) {
         map.flyTo(position, 13)
     }, [position, map])
     return null
+}
+
+function locationMessage(code: number): string {
+    switch (code) {
+        case 1:
+            return "Location is blocked, so we're starting from London."
+        case 2:
+            return "We couldn't find your location, so we're starting from London."
+        case 3:
+            return "Finding your location took too long, so we're starting from London."
+        default:
+            return "An unknown error occurred."
+    }
 }
 
 export default WalkMap
