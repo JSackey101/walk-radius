@@ -96,55 +96,64 @@ jobs:
             gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments/<first comment databaseId>/replies -f body='...'
 
             ## Step 1: load the existing review state
-            Fetch all review threads, including resolved state and every reply:
-            gh api graphql -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){reviewThreads(first:100){nodes{id isResolved path line comments(first:50){nodes{databaseId author{login} body createdAt}}}}}}}' -f o=${{ github.repository_owner }} -f r=${{ github.event.repository.name }} -F n=${{ github.event.pull_request.number }}
+            Fetch all review threads, including resolved state and every reply.
+            This is your source of truth for every step below; do not page through
+            the REST review-comments API.
+            gh api graphql -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){reviewThreads(first:100){nodes{id isResolved path line comments(last:100){nodes{databaseId author{login} body createdAt}}}}}}}' -f o=${{ github.repository_owner }} -f r=${{ github.event.repository.name }} -F n=${{ github.event.pull_request.number }}
 
-            ## Step 2a: if EVENT is pull_request_review_comment
-            The repo owner has replied in a review thread (yours, sourcery-ai's, or
-            anyone's). Find the thread that contains comment TRIGGER COMMENT ID and
-            read the whole thread plus the code it refers to. Then reply:
-            - If their argument is sound (intentional behaviour, the finding misread
-              the code, the risk is acceptable), say so briefly and resolve the
-              thread with the resolveReviewThread GraphQL mutation (thread id from
-              step 1).
-            - If the bug still stands, start with `[blocking]`, explain why with the
-              concrete failing case, and leave the thread open.
-            - If they ask a question, answer it (a ```suggestion block is fine).
-            Do not review the rest of the PR in this mode.
+            ## How to handle each kind of open item
+            (A) Owner reply you have not answered (the owner's comment is newer
+                than your latest comment in that thread). Read the whole thread and
+                the code it refers to, then reply:
+                - Their argument is sound (intentional behaviour, the finding misread
+                  the code, the risk is acceptable): say so briefly and resolve the
+                  thread with the resolveReviewThread GraphQL mutation.
+                - The bug still stands: start with `[blocking]`, explain why with
+                  the concrete failing case, and leave the thread open.
+                - A question: answer it (a ```suggestion block is fine).
+            (B) sourcery-ai thread you have not replied to. Check the finding
+                against the code and reply once:
+                - Real bug: `[blocking]` + confirm with the concrete failing case.
+                - Valid but not a bug: `[suggestion]` or `[nit]` + one line on
+                  whether it is worth doing.
+                - Wrong or not applicable: `[nit]` + explain briefly why, then
+                  resolve the thread.
 
-            ## Step 2c: if EVENT is pull_request_review
-            sourcery-ai has just submitted review TRIGGER REVIEW ID. Read it
-            (gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews/<id> and
-            .../reviews/<id>/comments). For each of its inline comments that you
-            have not already replied to, check the code and reply once in that
-            thread:
-            - Real bug: `[blocking]` + confirm with the concrete failing case.
-            - Valid but not a bug: `[suggestion]` or `[nit]` + one line on whether
-              it is worth doing.
-            - Wrong or not applicable: `[nit]` + explain briefly why, then resolve
-              the thread.
-            If the review body has overall comments, address them in your summary
-            comment (step 2b.3, using --edit-last) instead of a new comment.
-            Do not review the rest of the PR in this mode, then do step 2b.4.
+            ## Step 2: catch up (every EVENT)
+            Another run for this PR may have been dropped from the queue, so in
+            every run handle ALL open (A) and (B) items found in step 1, not only
+            the one that triggered this run.
 
-            ## Step 2b: if EVENT is pull_request
-            1. For each UNRESOLVED thread (yours or sourcery-ai's): check the current
-               code and commits since (git log, git diff). If addressed, reply naming
-               the commit that fixed it and resolve the thread. If it is a
-               sourcery-ai thread you have not replied to yet, handle it as in 2c.
-               If the owner replied with a counter-argument you have not answered
-               yet, handle it as in 2a. Otherwise leave it.
-            2. Review the full diff (gh pr diff) against the base branch. Post NEW
-               inline comments with mcp__github_inline_comment__create_inline_comment
-               (confirmed: true) only for problems not already covered by an
-               existing thread. Do not repeat resolved points.
-            3. Post or update one top-level summary comment with gh pr comment
-               (use --edit-last when you have commented before): what the PR does,
-               counts of open blocking / suggestion threads (including sourcery-ai
-               threads you have tagged), and a one-line verdict.
-            4. If no unresolved [blocking] threads remain, approve:
-               gh pr review ${{ github.event.pull_request.number }} --approve --body "No blocking issues."
-               If that command fails, ignore it.
+            ## Step 3: event-specific work
+            - EVENT pull_request_review_comment: the item containing comment
+              TRIGGER COMMENT ID is already covered by step 2. Do nothing more.
+            - EVENT pull_request_review: sourcery-ai submitted review TRIGGER REVIEW
+              ID; its inline threads are covered by step 2. If the review body
+              (gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews/<id>)
+              has overall comments, address them in the summary comment (see
+              below). Do not review the diff and do NOT approve in this mode.
+            - EVENT pull_request: full review.
+              1. For each UNRESOLVED thread (yours or sourcery-ai's) not handled in
+                 step 2: check the current code and commits since (git log,
+                 git diff). If addressed, reply naming the commit that fixed it
+                 and resolve the thread. Otherwise leave it.
+              2. Review the full diff (gh pr diff) against the base branch. Post
+                 NEW inline comments with
+                 mcp__github_inline_comment__create_inline_comment (confirmed: true)
+                 only for problems not already covered by an existing thread. Do
+                 not repeat resolved points.
+              3. Update the summary comment (see below).
+              4. Only in this mode, if no unresolved thread has your latest comment
+                 tagged [blocking], approve:
+                 gh pr review ${{ github.event.pull_request.number }} --approve --body "No blocking issues."
+                 If that command fails, ignore it.
+
+            ## Summary comment
+            Keep exactly one top-level summary comment, created or updated with:
+            gh pr comment ${{ github.event.pull_request.number }} --edit-last --create-if-none --body '...'
+            It says what the PR does, the counts of open blocking / suggestion
+            threads (including sourcery-ai threads you have tagged), and a
+            one-line verdict.
 
             Keep comments short and specific. Only post GitHub comments; do not put
             review text in your final message.
@@ -160,13 +169,15 @@ jobs:
         run: |
           set -euo pipefail
           data=$(gh api graphql \
-            -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){headRefOid reviewThreads(first:100){nodes{isResolved comments(first:100){nodes{author{login} body}}}}}}}' \
+            -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){reviewThreads(first:100){nodes{isResolved comments(last:100){nodes{author{login} body}}}}}}}' \
             -f o='${{ github.repository_owner }}' -f r='${{ github.event.repository.name }}' -F n=${{ github.event.pull_request.number }})
-          head=$(jq -r '.data.repository.pullRequest.headRefOid' <<<"$data")
+          # Report on the commit this run reviewed, not the current head: if a
+          # push landed meanwhile, its own run marks that commit pending/done.
+          head='${{ github.event.pull_request.head.sha }}'
           # Blocking = unresolved thread whose latest Claude comment is [blocking].
           blocking=$(jq '[.data.repository.pullRequest.reviewThreads.nodes[]
             | select(.isResolved | not)
-            | [.comments.nodes[] | select(.author.login | test("^claude"; "i"))] | last
+            | [.comments.nodes[] | select((.author.login // "") == "claude")] | last
             | select(. != null)
             | select(.body | test("^\\s*\\**\\[blocking\\]"; "i"))] | length' <<<"$data")
 
