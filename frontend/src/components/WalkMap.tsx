@@ -13,20 +13,25 @@ function WalkMap() {
     const [locationError, setLocationError] = useState<number | null>(null)
     useEffect(() => {
             let ignore = false
-            if (!navigator.geolocation) return 
 
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    if (ignore) return
-                    setCurrentPosition([position.coords.latitude, position.coords.longitude])
-                    setLocationError(null)
-                },
-                (error) => {
-                    setLocationError(error.code)
-                    console.error('Error getting location:', error.message)
-                },
-                { timeout: 10000 }
-            )}, [])
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        if (ignore) return
+                        setCurrentPosition([position.coords.latitude, position.coords.longitude])
+                        setLocationError(null)
+                    },
+                    (error) => {
+                        setLocationError(error.code)
+                    },
+                    { timeout: 10000 }
+                )
+            }
+
+            return () => { 
+                ignore = true 
+            }
+                }, [])
     return (
         <>
         {locationError != null && <LocationNotice message={locationMessage(locationError)} />}
