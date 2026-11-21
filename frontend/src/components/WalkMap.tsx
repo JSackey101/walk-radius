@@ -22,10 +22,15 @@ function WalkMap() {
                         setLocationError(null)
                     },
                     (error) => {
+                        if (ignore) return
                         setLocationError(error.code)
                     },
                     { timeout: 10000 }
                 )
+            }
+            
+            else {
+                setLocationError(2) // Geolocation not supported
             }
 
             return () => { 
