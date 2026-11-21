@@ -8,13 +8,13 @@ body,
   height: 100%;
   width: 100%;
 }
-.location-error {
+.location-notice {
   position: absolute;
   top: 12px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 1000;
-  background-color: rgb(146, 0, 0);
+  background-color: rgb(149, 127, 0);
   color: white;
   padding: 10px 15px;
   border-radius: 8px;
