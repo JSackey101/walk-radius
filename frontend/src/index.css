@@ -1,0 +1,23 @@
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+.walk-map {
+  height: 100%;
+  width: 100%;
+}
+.location-error {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  background-color: rgb(146, 0, 0);
+  color: white;
+  padding: 10px 15px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: Arial, sans-serif;
+}

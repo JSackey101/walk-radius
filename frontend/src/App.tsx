@@ -1,7 +1,7 @@
-import './App.css'
+import WalkMap from './components/WalkMap'
 
 function App() {
-  return <div>Hello Walk Radius</div>
+  return <WalkMap />
 }
 
 export default App
