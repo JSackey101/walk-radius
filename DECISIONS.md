@@ -105,6 +105,34 @@ Lightweight decision records (ADR-style). Add a new entry whenever a choice woul
 
 ---
 
+## 006 — Test-first for logic, manual checks for UI
+
+- **Date:** 2026-11-11
+- **Status:** Accepted
+
+**Context:** The project has two kinds of code: UI that a library draws on screen (the map, tiles, markers) and logic with clear inputs and outputs (cache keys, filtering and sorting places, parsing API responses, error handling).
+
+**Decision:** Write tests first (TDD) for logic, starting with the backend in M2. Check UI by hand against each issue's "Done when" list.
+
+- **M1:** manual checks in the browser; no automated tests.
+- **M2 onwards:** backend logic written test-first with pytest.
+- **M4:** add frontend tests with Vitest for logic only (e.g. choosing London when location is blocked), not for how things look.
+
+**Options considered:**
+- **TDD everywhere** — tests for UI rendering are slow to write and add little while still learning React.
+- **No tests** — fast at first, but no way to verify the code does what it should.
+- **Test-first for logic only** (chosen).
+
+**Reasons:**
+- Writing the test first defines the expected behaviour before the code, so I can verify the code I write is correct.
+- Backend logic is pure Python, where I'm already strong, so I learn one new thing (TDD) at a time.
+
+**Consequences:**
+- Each backend issue's "Done when" includes passing tests.
+- UI regressions are only caught by manual checks until M4.
+
+---
+
 ## Template
 
 ```
