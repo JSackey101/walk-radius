@@ -11,6 +11,7 @@ const LONDON: LatLngExpression = [51.5074, -0.1278]
 function WalkMap() {
     const [currentPosition, setCurrentPosition] = useState<LatLngExpression | null>(null)
     const [locationError, setLocationError] = useState<number | null>(null)
+    const [startPoint, setStartPoint] = useState<LatLngExpression | null>(null)
     useEffect(() => {
             let ignore = false
 
@@ -42,8 +43,8 @@ function WalkMap() {
         {locationError != null && <LocationNotice message={locationMessage(locationError)} />}
         <MapContainer center={LONDON} zoom={13} className="walk-map">
             {currentPosition && <MoveToPosition position={currentPosition} />}
-            {currentPosition && <Marker position={currentPosition} icon={pinIcon} />}
-            <MapClickHandler />
+            {startPoint && <Marker position={startPoint} icon={pinIcon} />}
+            <MapClickHandler onPick={setStartPoint}/>
             <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" errorTileUrl={notFoundImage}/>
         </MapContainer>
         </>
@@ -71,10 +72,10 @@ function locationMessage(code: number): string {
     }
 }
 
-function MapClickHandler() {
+function MapClickHandler({ onPick }: { onPick: (position: LatLngExpression) => void }) {
     useMapEvents({
         click (e) {
-            console.log(`Clicked at ${e.latlng}`)
+            onPick(e.latlng)
         }
     })
     return null
