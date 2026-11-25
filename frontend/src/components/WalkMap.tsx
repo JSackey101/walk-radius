@@ -20,6 +20,7 @@ function WalkMap() {
                     (position) => {
                         if (ignore) return
                         setCurrentPosition([position.coords.latitude, position.coords.longitude])
+                        setStartPoint([position.coords.latitude, position.coords.longitude])
                         setLocationError(null)
                     },
                     (error) => {
